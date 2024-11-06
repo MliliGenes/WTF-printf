@@ -5,152 +5,138 @@
 
 typedef struct FunctionEntry
 {
-	char					flag;
-	void					(*function)(void *, int);
-	struct FunctionEntry	*next;
-}							FunctionList;
+    char                    flag;
+    void                    (*function)(va_list *);
+    struct FunctionEntry     *next;
+} FunctionList;
 
-FunctionList	*ft_newnode(char flag, void (*function)(void *, int))
+FunctionList *new_node(char flag, void (*function)(va_list *))
 {
-	FunctionList	*node;
-
-	node = malloc(sizeof(FunctionList));
-	if (!node)
-		return (NULL);
-	node->flag = flag;
-	node->function = function;
-	node->next = NULL;
-	return (node);
+    FunctionList *node = malloc(sizeof(FunctionList));
+    if (!node)
+        return NULL;
+    node->flag = flag;
+    node->function = function;
+    node->next = NULL;
+    return node;
 }
 
-void	ft_add_back(FunctionList **lst, FunctionList *new)
+void add_back(FunctionList **lst, FunctionList *new)
 {
-	FunctionList	*tmp;
+    FunctionList *tmp;
 
-	if (!new)
-		return ;
-	if (!*lst)
-	{
-		*lst = new;
-		return ;
-	}
-	tmp = *lst;
-	while (tmp->next)
-		tmp = tmp->next;
-	tmp->next = new;
-}
-
-void	ft_putchar_fd(char *c, int fd)
-{
-	if (fd < 0)
-		return ;
-	write(fd, c, sizeof(char));
-}
-
-void	ft_putstr_fd(char *s, int fd)
-{
-	if (!s || fd < 0)
-		return ;
-	while (*s)
-	{
-		ft_putchar_fd(s, fd);
-		s++;
-	}
-}
-
-void	ft_putnbr_fd(int *n, int fd)
-{
-	unsigned int	np;
-	char			digit;
-	int				pn;
-
-	if (fd < 0)
-		return ;
-	if (*n < 0)
-	{
-		ft_putchar_fd("-", fd); // Print the minus sign
-		np = (unsigned int)(*n * -1);
-	}
-	else
-	{
-		np = (unsigned int)(*n);
-	}
-	if (np <= 9)
-	{
-		digit = np + '0';
-		ft_putchar_fd(&digit, fd);
-	}
-	else
-	{
-		pn = np / 10;
-		ft_putnbr_fd(&pn, fd);
-		digit = (np % 10) + '0';
-		ft_putchar_fd(&digit, fd);
-	}
-}
-
-FunctionList	*ft_init(void)
-{
-	FunctionList	*head;
-
-	head = NULL;
-	ft_add_back(&head, ft_newnode('c', (void (*)(void *, int))ft_putchar_fd));
-	ft_add_back(&head, ft_newnode('s', (void (*)(void *, int))ft_putstr_fd));
-	ft_add_back(&head, ft_newnode('d', (void (*)(void *, int))ft_putnbr_fd));
-	return (head);
-}
-
-void push_and_exec(char flag, va_list *ptr, void (*f)(void *, int))
-{
-    if (flag == 'c')
+    if (!new)
+        return;
+    if (!*lst)
     {
-        char c = (char)va_arg(*ptr, int);
-        f(&c, 1);
+        *lst = new;
+        return;
     }
-    else if (flag == 'd') 
+    tmp = *lst;
+    while (tmp->next)
+        tmp = tmp->next;
+    tmp->next = new;
+}
+
+void put_char(char c)
+{
+    write(1, &c, 1);
+}
+
+void put_char_func(va_list *args)
+{
+    char c = (char)va_arg(*args, int);
+    put_char(c);
+}
+
+void put_str_func(va_list *args)
+{
+    char *s = va_arg(*args, char *);
+    if (!s)
+        return;
+    while (*s)
     {
-        int n = va_arg(*ptr, int);
-        f(&n, 1);
-    }
-    else if (flag == 's')  
-    {
-        char *s = va_arg(*ptr, char *);
-        f(s, 1);
+        put_char(*s);
+        s++;
     }
 }
 
-void	variadic_fun(char *format, ...)
+void putnbr_rec_func(unsigned int n)
 {
-	int				i;
-	va_list			ptr;
-	FunctionList	*head;
+    if (n >= 10)
+        putnbr_rec_func(n / 10);
+    put_char((char)((n % 10) + '0'));
+}
 
-	i = 0;
-	va_start(ptr, format);
-	while (format[i])
-	{
-		if (format[i] == '%')
+void putnbr_func(va_list *args)
+{
+    int n = va_arg(*args, int);
+    unsigned int u_n;
+
+    if (n < 0)
+    {
+        put_char('-');
+        u_n = (unsigned int)(-n); 
+    }
+    else
+    {
+        u_n = (unsigned int)n;
+    }
+
+    putnbr_rec_func(u_n);
+}
+
+FunctionList *init_functions(void)
+{
+    FunctionList *head = NULL;
+    add_back(&head, new_node('c', (void (*)(va_list *))put_char_func));
+    add_back(&head, new_node('s', (void (*)(va_list *))put_str_func));
+    add_back(&head, new_node('d', (void (*)(va_list *))putnbr_func));
+    return head;
+}
+
+void variadic_fun(char *format, ...)
+{
+    int i = 0;
+    va_list args;
+    FunctionList *head = init_functions();
+
+    va_start(args, format);
+    while (format[i])
+    {
+        if (format[i] == '%')
 		{
-			i++;
-			head = ft_init();
-			while (head)
-			{
-				if (format[i] == head->flag)
-					push_and_exec(format[i], &ptr, head->function);
-				head = head->next;
-			}
-		}
-		else
-			ft_putchar_fd(format + i, 1);
-		i++;
-	}
-	va_end(ptr);
+            i++;
+            FunctionList *temp = head;
+            while (temp)
+            {
+                if (format[i] == temp->flag)
+                {
+                    temp->function(&args);
+                    break;
+                }
+                temp = temp->next;
+            }
+        }
+        else
+        {
+            put_char(format[i]); 
+        }
+        i++;
+    }
+    va_end(args);
 }
 
-int	main(void)
+int main(void)
 {
-	variadic_fun("hello %s", "saad");
+	char *str = "s";
+
+    variadic_fun("hello %d, your number is %d\n", (int)str, -12345);
+    printf("hello %d, your number is %d", (int)str, -12345);
+	
+    return 0;
 }
+
 
 // Here are examples of each format specifier in C's `printf` function,
 //	along with the expected output for each:
