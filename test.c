@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+// our lovely struct
 typedef struct FunctionEntry
 {
     char                    flag;
@@ -10,6 +11,7 @@ typedef struct FunctionEntry
     struct FunctionEntry     *next;
 } FunctionList;
 
+// linked list functions
 FunctionList *new_node(char flag, void (*function)(va_list *))
 {
     FunctionList *node = malloc(sizeof(FunctionList));
@@ -38,6 +40,7 @@ void add_back(FunctionList **lst, FunctionList *new)
     tmp->next = new;
 }
 
+// printing functions
 void put_char(char c)
 {
     write(1, &c, 1);
@@ -79,28 +82,100 @@ void putnbr_func(va_list *args)
         u_n = (unsigned int)(-n); 
     }
     else
-    {
         u_n = (unsigned int)n;
-    }
-
     putnbr_rec_func(u_n);
 }
 
+void putunsigned_func(va_list *args)
+{
+    int n = va_arg(*args, int);
+    unsigned int u_n;
+
+    u_n = (unsigned int)n;
+    putnbr_rec_func(u_n);
+}
+
+void puthex_rec_func(unsigned long nb,int is_toupper)
+{
+    char *set;
+
+    set = "0123456789qbcdef";
+    if (nb >= 16)
+        puthex_rec_func(nb / 16, is_toupper);
+    if (is_toupper == 1)
+        put_char(set[nb % 16] + 32);
+    else
+        put_char(set[nb % 16]);
+}
+
+void putpointer_func(va_list *args)
+{
+    unsigned long nb;
+
+    void *address = va_arg(*args, void *);
+    nb = (unsigned long)address;
+    put_char('0');
+    put_char('x');
+    puthex_rec_func(nb, 0);
+}
+
+void puthex_upper_func(va_list *args)
+{
+    unsigned long nb;
+
+    void *address = va_arg(*args, void *);
+    nb = (unsigned long)address;
+    puthex_rec_func(nb, 1);
+}
+
+void puthex_lower_func(va_list *args)
+{
+    unsigned long nb;
+
+    void *address = va_arg(*args, void *);
+    nb = (unsigned long)address;
+    puthex_rec_func(nb, 0);
+}
+
+void putpurcentage_func(void)
+{
+    put_char('%');
+}
+
+// init and free list
 FunctionList *init_functions(void)
 {
     FunctionList *head = NULL;
     add_back(&head, new_node('c', (void (*)(va_list *))put_char_func));
     add_back(&head, new_node('s', (void (*)(va_list *))put_str_func));
     add_back(&head, new_node('d', (void (*)(va_list *))putnbr_func));
+    add_back(&head, new_node('i', (void (*)(va_list *))putnbr_func));
+    add_back(&head, new_node('p', (void (*)(va_list *))putpointer_func));
+    add_back(&head, new_node('u', (void (*)(va_list *))putunsigned_func));
+    add_back(&head, new_node('x', (void (*)(va_list *))puthex_lower_func ));
+    add_back(&head, new_node('X', (void (*)(va_list *))puthex_upper_func));
+    add_back(&head, new_node('%', (void (*)(va_list *))putpurcentage_func));
     return head;
 }
 
-void variadic_fun(char *format, ...)
+void free_list(FunctionList *head)
+{
+    FunctionList *current = head;
+    FunctionList *next_node;
+
+    while (current != NULL) {
+        next_node = current->next;
+        free(current);
+        current = next_node;
+    }
+}
+
+// the FUCKING FUNCTION
+void ft_printf(const char *format, ...)
 {
     int i = 0;
     va_list args;
     FunctionList *head = init_functions();
-
     va_start(args, format);
     while (format[i])
     {
@@ -124,109 +199,13 @@ void variadic_fun(char *format, ...)
         }
         i++;
     }
+    free_list(head);
     va_end(args);
 }
 
 int main(void)
 {
-	char *str = "s";
-
-    variadic_fun("hello %d, your number is %d\n", (int)str, -12345);
-    printf("hello %d, your number is %d", (int)str, -12345);
-	
+    ft_printf("%u\n", -500);
+    printf("%u", -500);
     return 0;
 }
-
-
-// Here are examples of each format specifier in C's `printf` function,
-//	along with the expected output for each:
-
-// 1. **%c** - Prints a single character.
-//    ```c
-//    char ch = 'A';
-//    printf("%c\n", ch);
-//    ```
-//    **Output:**
-//    ```
-//    A
-//    ```
-
-// 2. **%s** - Prints a string.
-//    ```c
-//    char str[] = "Hello, World!";
-//    printf("%s\n", str);
-//    ```
-//    **Output:**
-//    ```
-//    Hello, World!
-//    ```
-
-// 3. **%p** - Prints a pointer in hexadecimal format.
-//    ```c
-//    int num = 42;
-//    int *ptr = &num;
-//    printf("%p\n", (void *)ptr);
-//    ```
-//    **Output:**
-//    ```
-//    0x7ffeeecb0c2c (address will vary)
-//    ```
-
-// 4. **%d** - Prints a decimal (base 10) number.
-//    ```c
-//    int num = 123;
-//    printf("%d\n", num);
-//    ```
-//    **Output:**
-//    ```
-//    123
-//    ```
-
-// 5. **%i** - Prints an integer in base 10.
-//    ```c
-//    int num = -456;
-//    printf("%i\n", num);
-//    ```
-//    **Output:**
-//    ```
-//    -456
-//    ```
-
-// 6. **%u** - Prints an unsigned decimal (base 10) number.
-//    ```c
-//    unsigned int num = 3000000000;
-//    printf("%u\n", num);
-//    ```
-//    **Output:**
-//    ```
-//    3000000000
-//    ```
-
-// 7. **%x** - Prints a number in hexadecimal (base 16) lowercase format.
-//    ```c
-//    int num = 255;
-//    printf("%x\n", num);
-//    ```
-//    **Output:**
-//    ```
-//    ff
-//    ```
-
-// 8. **%X** - Prints a number in hexadecimal (base 16) uppercase format.
-//    ```c
-//    int num = 255;
-//    printf("%X\n", num);
-//    ```
-//    **Output:**
-//    ```
-//    FF
-//    ```
-
-// 9. **%%** - Prints a percent sign.
-//    ```c
-//    printf("Discount: 50%%\n");
-//    ```
-//    **Output:**
-//    ```
-//    Discount: 50%
-//    ```
